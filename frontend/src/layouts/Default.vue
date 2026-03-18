@@ -42,6 +42,16 @@
           <span>Tasks</span>
         </el-menu-item>
         
+        <el-menu-item index="/logs">
+          <el-icon><List /></el-icon>
+          <span>Operation Logs</span>
+        </el-menu-item>
+        
+        <el-menu-item index="/users" v-if="isAdmin">
+          <el-icon><User /></el-icon>
+          <span>Users</span>
+        </el-menu-item>
+        
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>
           <span>Settings</span>
@@ -67,12 +77,15 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { House, Cpu, Box, Connection, Document, Setting } from '@element-plus/icons-vue'
+import { House, Cpu, Box, Connection, Document, Setting, User, List } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+const isAdmin = computed(() => authStore.user?.username === 'admin')
 
 async function handleLogout() {
   await authStore.logout()
