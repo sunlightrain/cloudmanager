@@ -34,6 +34,26 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/VmDetail.vue')
       },
       {
+        path: 'vms/:id/snapshots',
+        name: 'VmSnapshots',
+        component: () => import('@/views/VmSnapshots.vue')
+      },
+      {
+        path: 'hosts',
+        name: 'Hosts',
+        component: () => import('@/views/Hosts.vue')
+      },
+      {
+        path: 'datastores',
+        name: 'Datastores',
+        component: () => import('@/views/Datastores.vue')
+      },
+      {
+        path: 'networks',
+        name: 'Networks',
+        component: () => import('@/views/Networks.vue')
+      },
+      {
         path: 'tasks',
         name: 'Tasks',
         component: () => import('@/views/Tasks.vue')

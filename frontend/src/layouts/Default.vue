@@ -1,6 +1,6 @@
 <template>
   <el-container class="layout-container">
-    <el-aside width="200px">
+    <el-aside width="220px">
       <div class="logo">Cloud Manager</div>
       <el-menu
         :default-active="$route.path"
@@ -11,14 +11,37 @@
           <el-icon><House /></el-icon>
           <span>Dashboard</span>
         </el-menu-item>
-        <el-menu-item index="/vms">
-          <el-icon><Monitor /></el-icon>
-          <span>Virtual Machines</span>
-        </el-menu-item>
+        
+        <el-sub-menu index="compute">
+          <template #title>
+            <el-icon><Cpu /></el-icon>
+            <span>Compute</span>
+          </template>
+          <el-menu-item index="/vms">Virtual Machines</el-menu-item>
+          <el-menu-item index="/hosts">Hosts</el-menu-item>
+        </el-sub-menu>
+        
+        <el-sub-menu index="storage">
+          <template #title>
+            <el-icon><Box /></el-icon>
+            <span>Storage</span>
+          </template>
+          <el-menu-item index="/datastores">Datastores</el-menu-item>
+        </el-sub-menu>
+        
+        <el-sub-menu index="network">
+          <template #title>
+            <el-icon><Connection /></el-icon>
+            <span>Network</span>
+          </template>
+          <el-menu-item index="/networks">Networks</el-menu-item>
+        </el-sub-menu>
+        
         <el-menu-item index="/tasks">
           <el-icon><Document /></el-icon>
           <span>Tasks</span>
         </el-menu-item>
+        
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>
           <span>Settings</span>
@@ -46,7 +69,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { House, Monitor, Document, Setting } from '@element-plus/icons-vue'
+import { House, Cpu, Box, Connection, Document, Setting } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -81,12 +104,14 @@ async function handleLogout() {
   background-color: #304156;
 }
 
-.el-menu-item {
+.el-menu-item, .el-sub-menu__title {
   color: #bfcbd9;
 }
 
 .el-menu-item:hover,
-.el-menu-item.is-active {
+.el-sub-menu__title:hover,
+.el-menu-item.is-active,
+.el-sub-menu.is-active > .el-sub-menu__title {
   background-color: #263445;
   color: #409eff;
 }
