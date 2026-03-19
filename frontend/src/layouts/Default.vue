@@ -21,6 +21,15 @@
           <el-menu-item index="/hosts">Hosts</el-menu-item>
         </el-sub-menu>
         
+        <el-sub-menu index="visualization">
+          <template #title>
+            <el-icon><Grid /></el-icon>
+            <span>Visualization</span>
+          </template>
+          <el-menu-item index="/topology">Infrastructure Topology</el-menu-item>
+          <el-menu-item index="/portal">Tenant Portal</el-menu-item>
+        </el-sub-menu>
+        
         <el-sub-menu index="storage">
           <template #title>
             <el-icon><Box /></el-icon>
@@ -80,7 +89,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { House, Cpu, Box, Connection, Document, Setting, User, List } from '@element-plus/icons-vue'
+import { House, Cpu, Box, Connection, Document, Setting, User, List, Grid } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

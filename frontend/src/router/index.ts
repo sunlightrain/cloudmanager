@@ -72,8 +72,24 @@ const routes: RouteRecordRaw[] = [
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/Settings.vue')
+      },
+      {
+        path: 'topology',
+        name: 'Topology',
+        component: () => import('@/views/Topology.vue')
+      },
+      {
+        path: 'portal',
+        name: 'TenantPortal',
+        component: () => import('@/views/TenantPortal.vue')
       }
     ]
+  },
+  {
+    path: '/console/:vmId',
+    name: 'Console',
+    component: () => import('@/views/Console.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
