@@ -1,6 +1,9 @@
+import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.core.database import get_session
 from app.api.deps import require_current_user
 from app.models.user import User
@@ -10,11 +13,16 @@ from app.schemas.vm import VMCreate, VMUpdate, VMPowerAction, VMResponse, VMList
 from app.schemas.common import ResponseModel
 from app.core.vsphere import get_vsphere_client
 
+logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter(prefix="/vms", tags=["Virtual Machines"])
 
 
 @router.get("", response_model=ResponseModel)
+@limiter.limit("100/minute")
 def list_vms(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     name: Optional[str] = None,
@@ -22,6 +30,7 @@ def list_vms(
     current_user: User = Depends(require_current_user),
     session: Session = Depends(get_session)
 ):
+    logger.info(f"User {current_user.username} listing VMs")
     client = get_vsphere_client()
     vms = client.get_vms()
     
@@ -46,11 +55,14 @@ def list_vms(
 
 
 @router.get("/{vm_id}", response_model=ResponseModel)
+@limiter.limit("60/minute")
 def get_vm(
+    request: Request,
     vm_id: str,
     current_user: User = Depends(require_current_user),
     session: Session = Depends(get_session)
 ):
+    logger.info(f"User {current_user.username} getting VM {vm_id}")
     client = get_vsphere_client()
     vm = client.get_vm_by_id(vm_id)
     
@@ -64,11 +76,14 @@ def get_vm(
 
 
 @router.post("", response_model=ResponseModel, status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("30/minute")
 def create_vm(
+    request: Request,
     vm_data: VMCreate,
     current_user: User = Depends(require_current_user),
     session: Session = Depends(get_session)
 ):
+    logger.info(f"User {current_user.username} creating VM: {vm_data.name}")
     task = Task(task_type="vm_create", status="pending")
     session.add(task)
     session.commit()
@@ -95,11 +110,14 @@ def create_vm(
 
 
 @router.delete("/{vm_id}", response_model=ResponseModel, status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("20/minute")
 def delete_vm(
+    request: Request,
     vm_id: str,
     current_user: User = Depends(require_current_user),
     session: Session = Depends(get_session)
 ):
+    logger.info(f"User {current_user.username} deleting VM: {vm_id}")
     task = Task(task_type="vm_delete", status="pending")
     session.add(task)
     session.commit()
@@ -125,12 +143,15 @@ def delete_vm(
 
 
 @router.patch("/{vm_id}", response_model=ResponseModel, status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("30/minute")
 def update_vm(
+    request: Request,
     vm_id: str,
     vm_data: VMUpdate,
     current_user: User = Depends(require_current_user),
     session: Session = Depends(get_session)
 ):
+    logger.info(f"User {current_user.username} updating VM: {vm_id}")
     task = Task(task_type="vm_update", status="pending")
     session.add(task)
     session.commit()
@@ -157,12 +178,15 @@ def update_vm(
 
 
 @router.post("/{vm_id}/power", response_model=ResponseModel)
+@limiter.limit("60/minute")
 def power_vm(
+    request: Request,
     vm_id: str,
     action: VMPowerAction,
     current_user: User = Depends(require_current_user),
     session: Session = Depends(get_session)
 ):
+    logger.info(f"User {current_user.username} power action {action.action} on VM {vm_id}")
     client = get_vsphere_client()
     
     if action.action == "start":

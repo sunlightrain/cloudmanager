@@ -1,7 +1,9 @@
+import logging
 from typing import Optional, List, Dict, Any
 from app.core.config import get_settings
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 try:
@@ -26,6 +28,7 @@ class VSphereClient:
     
     def connect(self, host: str, username: str, password: str, port: int = 443) -> bool:
         try:
+            logger.info(f"Connecting to vCenter: {host}:{port}")
             self.client = SmartConnect(
                 host=host,
                 user=username,
@@ -37,9 +40,11 @@ class VSphereClient:
             self._password = password
             self._port = port
             self.connected = True
+            logger.info(f"Successfully connected to vCenter: {host}")
             return True
         except Exception as e:
             self.connected = False
+            logger.error(f"Failed to connect to vCenter {host}: {str(e)}")
             raise Exception(f"Failed to connect to vCenter: {str(e)}")
     
     def reconnect(self):

@@ -5,10 +5,15 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
+connect_args = {"check_same_thread": False} if "sqlite" in settings.database_url else {}
+
 engine = create_engine(
     settings.database_url,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {},
-    echo=settings.debug
+    connect_args=connect_args,
+    echo=settings.debug,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+    max_overflow=10
 )
 
 
