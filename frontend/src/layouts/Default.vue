@@ -51,6 +51,11 @@
           <span>Tasks</span>
         </el-menu-item>
         
+        <el-menu-item index="/monitoring">
+          <el-icon><Monitor /></el-icon>
+          <span>Monitoring</span>
+        </el-menu-item>
+        
         <el-menu-item index="/logs">
           <el-icon><List /></el-icon>
           <span>Operation Logs</span>
@@ -89,7 +94,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { House, Cpu, Box, Connection, Document, Setting, User, List, Grid } from '@element-plus/icons-vue'
+import { House, Cpu, Box, Connection, Document, Setting, User, List, Grid, Monitor } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

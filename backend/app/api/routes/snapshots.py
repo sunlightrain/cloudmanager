@@ -76,3 +76,48 @@ def delete_snapshot(
         )
     
     return ResponseModel(message="Snapshot deleted successfully")
+
+
+@router.post("/{vm_id}/cleanup", response_model=ResponseModel, status_code=status.HTTP_202_ACCEPTED)
+def cleanup_snapshots(
+    vm_id: str,
+    keep_count: int = Query(0, description="Number of latest snapshots to keep"),
+    current_user: User = Depends(require_current_user)
+):
+    client = get_vsphere_client()
+    
+    try:
+        snapshots = client.get_snapshots(vm_id)
+        if not snapshots:
+            return ResponseModel(message="No snapshots to clean")
+        
+        snapshots_sorted = sorted(
+            snapshots,
+            key=lambda x: x.get("created", ""),
+            reverse=True
+        )
+        
+        to_delete = snapshots_sorted[keep_count:]
+        deleted = []
+        failed = []
+        
+        for snap in to_delete:
+            try:
+                client.delete_snapshot(vm_id, snap.get("snapshot_id"))
+                deleted.append(snap.get("name"))
+            except Exception as e:
+                failed.append({"name": snap.get("name"), "error": str(e)})
+        
+        return ResponseModel(
+            data={
+                "deleted": len(deleted),
+                "failed": len(failed),
+                "details": {"deleted": deleted, "failed": failed}
+            },
+            message=f"Cleanup completed: {len(deleted)} deleted, {len(failed)} failed"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Cleanup failed: {str(e)}"
+        )
