@@ -8,6 +8,8 @@ from app.models.host import Host
 from app.models.vm import VM
 from app.models.storage import Datastore
 from app.models.network import Network, PortGroup
+from app.models.tenant import Tenant, TenantUser
+from app.models.approval import ApprovalTemplate, ApprovalRequest, ApprovalRecord
 
 __all__ = [
     "User",
@@ -21,4 +23,9 @@ __all__ = [
     "Datastore",
     "Network",
     "PortGroup",
+    "Tenant",
+    "TenantUser",
+    "ApprovalTemplate",
+    "ApprovalRequest",
+    "ApprovalRecord",
 ]

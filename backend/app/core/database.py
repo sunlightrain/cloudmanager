@@ -23,6 +23,8 @@ def init_db():
     from app.models.vm import VM
     from app.models.storage import Datastore
     from app.models.network import Network, PortGroup
+    from app.models.tenant import Tenant, TenantUser
+    from app.models.approval import ApprovalTemplate, ApprovalRequest, ApprovalRecord
     SQLModel.metadata.create_all(engine)
 
 
