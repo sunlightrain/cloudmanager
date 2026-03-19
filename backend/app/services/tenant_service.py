@@ -5,8 +5,9 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models.enterprise import (
-    Organization, OrganizationUser, TenantVM, User
+    Organization, OrganizationUser, TenantVM
 )
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 

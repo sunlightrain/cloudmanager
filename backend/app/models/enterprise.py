@@ -199,7 +199,7 @@ class ServiceCatalog(SQLModel, table=True):
         "memory_gb": 4,
         "disk_gb": 40,
         "template": "ubuntu22"
-    })
+    }, sa_type=JSON)
     is_public: bool = Field(default=True)
     usage_count: int = Field(default=0)
     created_at: datetime = Field(default_factory=datetime.utcnow)

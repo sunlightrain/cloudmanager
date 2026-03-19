@@ -4,7 +4,8 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from app.models.enterprise import Request, ApprovalAction, Organization, OrganizationUser, User
+from app.models.enterprise import Request, ApprovalAction, Organization
+from app.models.user import User
 from app.services.tenant_service import OrganizationService, TenantVMService
 
 logger = logging.getLogger(__name__)
