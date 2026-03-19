@@ -3,9 +3,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, Field, create_engine, Session
-from passlib.context import CryptContext
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
 
 
 class User(SQLModel, table=True):
@@ -20,8 +18,8 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     def verify_password(self, plain_password: str) -> bool:
-        return pwd_context.verify(plain_password, self.password_hash)
+        return bcrypt.checkpw(plain_password.encode('utf-8'), self.password_hash.encode('utf-8'))
     
     @staticmethod
     def hash_password(password: str) -> str:
-        return pwd_context.hash(password)
+        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
