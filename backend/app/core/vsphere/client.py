@@ -1,6 +1,9 @@
 import logging
+import time
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+
+from pyVmomi import vim
 
 from app.core.vsphere.pool import get_connection_pool, ConnectionConfig
 from app.core.vsphere.exceptions import (
@@ -440,6 +443,3 @@ class VSphereClient:
 
 def get_vsphere_client(host: str, user: str, password: str, port: int = 443, datacenter: Optional[str] = None) -> VSphereClient:
     return VSphereClient(host=host, user=user, password=password, port=port, datacenter=datacenter)
-
-
-import vim
