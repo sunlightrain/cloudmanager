@@ -1,5 +1,7 @@
-from typing import Optional
+from typing import Optional, List
+import json
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.core.database import get_session
 from app.api.deps import require_current_user
@@ -394,3 +396,258 @@ def get_vm_performance(
         raise HTTPException(status_code=404, detail="VM not found or performance data unavailable")
     
     return ResponseModel(data=performance)
+
+
+class VMCloneRequest(BaseModel):
+    name: str
+    target_host_id: Optional[str] = None
+    target_datastore_id: Optional[str] = None
+    linked_clone: bool = False
+    snapshot_id: Optional[str] = None
+
+
+class VMMigrateRequest(BaseModel):
+    target_host_id: Optional[str] = None
+    target_datastore_id: Optional[str] = None
+    target_cluster_id: Optional[str] = None
+    priority: str = "default"
+
+
+class VMHotResizeRequest(BaseModel):
+    cpu: Optional[int] = None
+    memory_mb: Optional[int] = None
+    disk_gb: Optional[int] = None
+
+
+@router.post("/{vm_id}/migrate", response_model=ResponseModel)
+async def migrate_vm(
+    vm_id: str,
+    migrate_data: VMMigrateRequest,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.migrate(
+        vm_id=vm_id,
+        target_host_id=migrate_data.target_host_id,
+        target_datastore_id=migrate_data.target_datastore_id,
+        target_cluster_id=migrate_data.target_cluster_id,
+        priority=migrate_data.priority
+    )
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_migrate",
+        target=vm_id,
+        detail=json.dumps(migrate_data.model_dump())
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.post("/{vm_id}/storage-vmotion", response_model=ResponseModel)
+async def storage_vmotion(
+    vm_id: str,
+    target_datastore_id: str,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.storage_vmotion(vm_id, target_datastore_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_storage_vmotion",
+        target=vm_id,
+        detail=f"Target datastore: {target_datastore_id}"
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.post("/{vm_id}/hot-resize", response_model=ResponseModel)
+async def hot_resize_vm(
+    vm_id: str,
+    resize_data: VMHotResizeRequest,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.hot_resize(
+        vm_id=vm_id,
+        cpu=resize_data.cpu,
+        memory_mb=resize_data.memory_mb,
+        disk_gb=resize_data.disk_gb
+    )
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_hot_resize",
+        target=vm_id,
+        detail=json.dumps(resize_data.model_dump())
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.post("/{vm_id}/clone", response_model=ResponseModel)
+async def clone_vm(
+    vm_id: str,
+    clone_data: VMCloneRequest,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.clone(
+        vm_id=vm_id,
+        name=clone_data.name,
+        target_host_id=clone_data.target_host_id,
+        target_datastore_id=clone_data.target_datastore_id,
+        linked_clone=clone_data.linked_clone,
+        snapshot_id=clone_data.snapshot_id
+    )
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_clone",
+        target=vm_id,
+        detail=f"Cloned to: {clone_data.name}"
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.post("/{vm_id}/convert-to-template", response_model=ResponseModel)
+async def convert_to_template(
+    vm_id: str,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.convert_to_template(vm_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_convert_to_template",
+        target=vm_id
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.post("/templates/{template_id}/convert-to-vm", response_model=ResponseModel)
+async def convert_to_vm(
+    template_id: str,
+    target_host_id: Optional[str] = None,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.convert_to_vm(template_id, target_host_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="template_convert_to_vm",
+        target=template_id
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.post("/batch/power-on", response_model=ResponseModel)
+async def batch_power_on(
+    vm_ids: List[str],
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.batch_power_on(vm_ids)
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_batch_power_on",
+        target=",".join(vm_ids)
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message="Batch power on completed", data=result)
+
+
+@router.post("/batch/power-off", response_model=ResponseModel)
+async def batch_power_off(
+    vm_ids: List[str],
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.batch_power_off(vm_ids)
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_batch_power_off",
+        target=",".join(vm_ids)
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message="Batch power off completed", data=result)
+
+
+@router.post("/batch/delete", response_model=ResponseModel)
+async def batch_delete(
+    vm_ids: List[str],
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.batch_delete(vm_ids)
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_batch_delete",
+        target=",".join(vm_ids)
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message="Batch delete completed", data=result)

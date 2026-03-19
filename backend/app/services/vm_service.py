@@ -165,3 +165,129 @@ class VMService:
         except Exception as e:
             logger.error(f"Failed to get VM performance for {vm_id}: {e}")
             return None
+    
+    async def migrate(
+        self,
+        vm_id: str,
+        target_host_id: str = None,
+        target_datastore_id: str = None,
+        target_cluster_id: str = None,
+        priority: str = "default"
+    ) -> Dict[str, Any]:
+        try:
+            result = self.vsphere.migrate_vm(
+                vm_id=vm_id,
+                target_host_id=target_host_id,
+                target_datastore_id=target_datastore_id,
+                target_cluster_id=target_cluster_id,
+                priority=priority
+            )
+            await self._update_vm_status(vm_id)
+            return {"success": True, "message": "VM migrated", "vm_id": vm_id}
+        except VSphereOperationError as e:
+            logger.error(f"Failed to migrate VM {vm_id}: {e}")
+            return {"success": False, "message": str(e), "vm_id": vm_id}
+        except Exception as e:
+            logger.error(f"Unexpected error migrating VM {vm_id}: {e}")
+            return {"success": False, "message": str(e), "vm_id": vm_id}
+    
+    async def storage_vmotion(self, vm_id: str, target_datastore_id: str) -> Dict[str, Any]:
+        try:
+            result = self.vsphere.storage_vmotion(vm_id, target_datastore_id)
+            await self._update_vm_status(vm_id)
+            return {"success": True, "message": "Storage vMotion completed", "vm_id": vm_id}
+        except VSphereOperationError as e:
+            logger.error(f"Failed to perform Storage vMotion for VM {vm_id}: {e}")
+            return {"success": False, "message": str(e), "vm_id": vm_id}
+        except Exception as e:
+            logger.error(f"Unexpected error performing Storage vMotion for VM {vm_id}: {e}")
+            return {"success": False, "message": str(e), "vm_id": vm_id}
+    
+    async def hot_resize(
+        self,
+        vm_id: str,
+        cpu: int = None,
+        memory_mb: int = None,
+        disk_gb: int = None
+    ) -> Dict[str, Any]:
+        try:
+            result = self.vsphere.hot_resize(vm_id, cpu=cpu, memory_mb=memory_mb, disk_gb=disk_gb)
+            await self._update_vm_status(vm_id)
+            return {"success": True, "message": "VM resized", "vm_id": vm_id}
+        except VSphereOperationError as e:
+            logger.error(f"Failed to hot-resize VM {vm_id}: {e}")
+            return {"success": False, "message": str(e), "vm_id": vm_id}
+        except Exception as e:
+            logger.error(f"Unexpected error hot-resizing VM {vm_id}: {e}")
+            return {"success": False, "message": str(e), "vm_id": vm_id}
+    
+    async def clone(
+        self,
+        vm_id: str,
+        name: str,
+        target_host_id: str = None,
+        target_datastore_id: str = None,
+        target_folder_id: str = None,
+        linked_clone: bool = False,
+        snapshot_id: str = None
+    ) -> Dict[str, Any]:
+        try:
+            cloned_vm_id = self.vsphere.clone_vm(
+                vm_id=vm_id,
+                name=name,
+                target_host_id=target_host_id,
+                target_datastore_id=target_datastore_id,
+                target_folder_id=target_folder_id,
+                linked_clone=linked_clone,
+                snapshot_id=snapshot_id
+            )
+            return {"success": True, "message": "VM cloned", "cloned_vm_id": cloned_vm_id, "name": name}
+        except VSphereOperationError as e:
+            logger.error(f"Failed to clone VM {vm_id}: {e}")
+            return {"success": False, "message": str(e)}
+        except Exception as e:
+            logger.error(f"Unexpected error cloning VM {vm_id}: {e}")
+            return {"success": False, "message": str(e)}
+    
+    async def convert_to_template(self, vm_id: str) -> Dict[str, Any]:
+        try:
+            result = self.vsphere.convert_to_template(vm_id)
+            return {"success": True, "message": "VM converted to template", "vm_id": vm_id}
+        except VSphereOperationError as e:
+            logger.error(f"Failed to convert VM {vm_id} to template: {e}")
+            return {"success": False, "message": str(e), "vm_id": vm_id}
+        except Exception as e:
+            logger.error(f"Unexpected error converting VM {vm_id} to template: {e}")
+            return {"success": False, "message": str(e), "vm_id": vm_id}
+    
+    async def convert_to_vm(self, template_id: str, target_host_id: str = None) -> Dict[str, Any]:
+        try:
+            result = self.vsphere.convert_to_vm(template_id, target_host_id)
+            return {"success": True, "message": "Template converted to VM", "vm_id": template_id}
+        except VSphereOperationError as e:
+            logger.error(f"Failed to convert template {template_id} to VM: {e}")
+            return {"success": False, "message": str(e), "vm_id": template_id}
+        except Exception as e:
+            logger.error(f"Unexpected error converting template {template_id} to VM: {e}")
+            return {"success": False, "message": str(e), "vm_id": template_id}
+    
+    async def batch_power_on(self, vm_ids: List[str]) -> Dict[str, Any]:
+        results = []
+        for vm_id in vm_ids:
+            result = await self.power_on(vm_id)
+            results.append(result)
+        return {"success": True, "results": results}
+    
+    async def batch_power_off(self, vm_ids: List[str]) -> Dict[str, Any]:
+        results = []
+        for vm_id in vm_ids:
+            result = await self.power_off(vm_id)
+            results.append(result)
+        return {"success": True, "results": results}
+    
+    async def batch_delete(self, vm_ids: List[str]) -> Dict[str, Any]:
+        results = []
+        for vm_id in vm_ids:
+            result = await self.delete(vm_id)
+            results.append(result)
+        return {"success": True, "results": results}

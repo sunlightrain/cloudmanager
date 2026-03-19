@@ -196,6 +196,50 @@ class VSphereClient:
                 return vm
         return None
     
+    def _find_host_by_id(self, host_id: str):
+        self._ensure_connected()
+        content = self._client.content
+        hosts = content.rootFolder.childEntity[0].hostFolder.childEntity
+        for host in hosts:
+            if host._GetMoId() == host_id:
+                return host
+        return None
+    
+    def _find_datastore_by_id(self, datastore_id: str):
+        self._ensure_connected()
+        content = self._client.content
+        datastores = content.rootFolder.childEntity[0].datastoreFolder.childEntity
+        for ds in datastores:
+            if ds._GetMoId() == datastore_id:
+                return ds
+        return None
+    
+    def _find_folder_by_id(self, folder_id: str):
+        self._ensure_connected()
+        content = self._client.content
+        folders = content.rootFolder.childEntity[0].vmFolder.childEntity
+        for folder in folders:
+            if hasattr(folder, '_GetMoId') and folder._GetMoId() == folder_id:
+                return folder
+        return None
+    
+    def _find_snapshot_by_id(self, vm, snapshot_id: str):
+        snapshot_info = vm.snapshot
+        if not snapshot_info or not snapshot_info.rootSnapshotList:
+            return None
+        
+        def find_snap(snapshots, snap_id):
+            for snap in snapshots:
+                if str(snap.id) == str(snap_id):
+                    return snap
+                if snap.childSnapshotList:
+                    result = find_snap(snap.childSnapshotList, snap_id)
+                    if result:
+                        return result
+            return None
+        
+        return find_snap(snapshot_info.rootSnapshotList, snapshot_id)
+    
     def _wait_for_task(self, task, timeout: int = 300):
         if PYVIMOMI_AVAILABLE:
             from pyVmomi import vim
@@ -383,6 +427,231 @@ class VSphereClient:
             return True
         except Exception as e:
             raise VSphereOperationError(f"Failed to delete VM: {e}")
+    
+    @with_retry(max_attempts=3, delay=5.0)
+    def migrate_vm(
+        self,
+        vm_id: str,
+        target_host_id: str = None,
+        target_datastore_id: str = None,
+        target_cluster_id: str = None,
+        priority: str = "default"
+    ) -> bool:
+        vm = self._find_vm(vm_id)
+        if not vm:
+            raise VSphereOperationError(f"VM {vm_id} not found")
+        
+        try:
+            from pyVmomi import vim
+            
+            relocate_spec = vim.VirtualMachineRelocateSpec()
+            
+            if target_host_id:
+                target_host = self._find_host_by_id(target_host_id)
+                if not target_host:
+                    raise VSphereOperationError(f"Target host {target_host_id} not found")
+                relocate_spec.host = target_host
+                relocate_spec.pool = target_host.parent.resourcePool
+            
+            if target_datastore_id:
+                target_ds = self._find_datastore_by_id(target_datastore_id)
+                if not target_ds:
+                    raise VSphereOperationError(f"Target datastore {target_datastore_id} not found")
+                relocate_spec.datastore = target_ds
+            
+            priority_map = {
+                "low": vim.VirtualMachineMovePriority.lowPriority,
+                "high": vim.VirtualMachineMovePriority.highPriority,
+                "default": vim.VirtualMachineMovePriority.defaultPriority
+            }
+            move_priority = priority_map.get(priority, vim.VirtualMachineMovePriority.defaultPriority)
+            
+            task = vm.RelocateVM(spec=relocate_spec, priority=move_priority)
+            self._wait_for_task(task)
+            return True
+        except Exception as e:
+            raise VSphereOperationError(f"Failed to migrate VM: {e}")
+    
+    @with_retry(max_attempts=3, delay=5.0)
+    def storage_vmotion(self, vm_id: str, target_datastore_id: str) -> bool:
+        vm = self._find_vm(vm_id)
+        if not vm:
+            raise VSphereOperationError(f"VM {vm_id} not found")
+        
+        try:
+            from pyVmomi import vim
+            
+            target_ds = self._find_datastore_by_id(target_datastore_id)
+            if not target_ds:
+                raise VSphereOperationError(f"Target datastore {target_datastore_id} not found")
+            
+            relocate_spec = vim.VirtualMachineRelocateSpec()
+            relocate_spec.datastore = target_ds
+            
+            if vm.runtime.host:
+                relocate_spec.host = vm.runtime.host
+                relocate_spec.pool = vm.runtime.host.parent.resourcePool
+            
+            task = vm.RelocateVM(spec=relocate_spec, priority=vim.VirtualMachineMovePriority.defaultPriority)
+            self._wait_for_task(task)
+            return True
+        except Exception as e:
+            raise VSphereOperationError(f"Failed to perform Storage vMotion: {e}")
+    
+    @with_retry(max_attempts=3, delay=5.0)
+    def hot_resize(
+        self,
+        vm_id: str,
+        cpu: int = None,
+        memory_mb: int = None,
+        disk_gb: int = None
+    ) -> bool:
+        vm = self._find_vm(vm_id)
+        if not vm:
+            raise VSphereOperationError(f"VM {vm_id} not found")
+        
+        try:
+            from pyVmomi import vim
+            
+            spec = vim.VirtualMachineConfigSpec()
+            
+            if cpu:
+                spec.numCPUs = cpu
+            
+            if memory_mb:
+                spec.memoryMB = memory_mb
+            
+            if disk_gb:
+                for device in vm.config.hardware.device:
+                    if hasattr(device, 'capacityInKB') and device.capacityInKB:
+                        new_capacity_kb = disk_gb * 1024 * 1024
+                        if device.capacityInKB < new_capacity_kb:
+                            device.capacityInKB = new_capacity_kb
+                            spec.deviceChange.append(
+                                vim.VirtualDeviceConfigSpec(
+                                    operation=vim.VirtualDeviceConfigSpecOperation.edit,
+                                    device=device
+                                )
+                            )
+            
+            if spec.numCPUs or spec.memoryMB or spec.deviceChange:
+                task = vm.Reconfigure(spec)
+                self._wait_for_task(task)
+            
+            return True
+        except Exception as e:
+            raise VSphereOperationError(f"Failed to hot-resize VM: {e}")
+    
+    @with_retry(max_attempts=3, delay=5.0)
+    def clone_vm(
+        self,
+        vm_id: str,
+        name: str,
+        target_host_id: str = None,
+        target_datastore_id: str = None,
+        target_folder_id: str = None,
+        linked_clone: bool = False,
+        snapshot_id: str = None
+    ) -> str:
+        vm = self._find_vm(vm_id)
+        if not vm:
+            raise VSphereOperationError(f"VM {vm_id} not found")
+        
+        try:
+            from pyVmomi import vim
+            
+            clone_spec = vim.VirtualMachineCloneSpec()
+            clone_spec.powerOn = False
+            clone_spec.template = False
+            
+            if linked_clone:
+                clone_spec.location = vim.VirtualMachineRelocateSpec()
+                
+                if target_datastore_id:
+                    target_ds = self._find_datastore_by_id(target_datastore_id)
+                    if target_ds:
+                        clone_spec.location.datastore = target_ds
+                
+                if target_host_id:
+                    target_host = self._find_host_by_id(target_host_id)
+                    if target_host:
+                        clone_spec.location.host = target_host
+                        clone_spec.location.pool = target_host.parent.resourcePool
+                
+                if snapshot_id:
+                    snapshot = self._find_snapshot_by_id(vm, snapshot_id)
+                    if snapshot:
+                        clone_spec.snapshot = snapshot
+                
+                clone_spec.location.diskMoveType = "createNewChildDiskBacking"
+            else:
+                if target_datastore_id:
+                    target_ds = self._find_datastore_by_id(target_datastore_id)
+                    if target_ds:
+                        if not clone_spec.location:
+                            clone_spec.location = vim.VirtualMachineRelocateSpec()
+                        clone_spec.location.datastore = target_ds
+                
+                if target_host_id:
+                    target_host = self._find_host_by_id(target_host_id)
+                    if target_host:
+                        if not clone_spec.location:
+                            clone_spec.location = vim.VirtualMachineRelocateSpec()
+                        clone_spec.location.host = target_host
+                        clone_spec.location.pool = target_host.parent.resourcePool
+            
+            vm_folder = None
+            if target_folder_id:
+                vm_folder = self._find_folder_by_id(target_folder_id)
+            
+            if not vm_folder:
+                content = self._client.content
+                vm_folder = content.rootFolder.childEntity[0].vmFolder
+            
+            task = vm.CloneVM(folder=vm_folder, name=name, spec=clone_spec)
+            self._wait_for_task(task)
+            
+            cloned_vm = task.info.result
+            return cloned_vm._GetMoId()
+        except Exception as e:
+            raise VSphereOperationError(f"Failed to clone VM: {e}")
+    
+    @with_retry(max_attempts=3, delay=5.0)
+    def convert_to_template(self, vm_id: str) -> bool:
+        vm = self._find_vm(vm_id)
+        if not vm:
+            raise VSphereOperationError(f"VM {vm_id} not found")
+        
+        try:
+            if vm.runtime.powerState.value == "poweredOn":
+                task = vm.PowerOffVM_Task()
+                self._wait_for_task(task)
+            
+            vm.MarkAsTemplate()
+            return True
+        except Exception as e:
+            raise VSphereOperationError(f"Failed to convert VM to template: {e}")
+    
+    @with_retry(max_attempts=3, delay=5.0)
+    def convert_to_vm(self, template_id: str, target_host_id: str = None) -> bool:
+        template = self._find_vm(template_id)
+        if not template:
+            raise VSphereOperationError(f"Template {template_id} not found")
+        
+        try:
+            from pyVmomi import vim
+            
+            if target_host_id:
+                target_host = self._find_host_by_id(target_host_id)
+                if not target_host:
+                    raise VSphereOperationError(f"Target host {target_host_id} not found")
+                template.MarkAsVirtualMachine(pool=target_host.parent.resourcePool, host=target_host)
+            else:
+                template.MarkAsVirtualMachine()
+            
+            return True
+        except Exception as e:
+            raise VSphereOperationError(f"Failed to convert template to VM: {e}")
     
     @with_retry(max_attempts=3, delay=1.0)
     def get_snapshots(self, vm_id: str) -> List[Dict[str, Any]]:
