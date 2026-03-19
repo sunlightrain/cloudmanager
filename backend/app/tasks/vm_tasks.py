@@ -371,6 +371,3 @@ def resize_vm_resources_task(
             "status": "failed",
             "error": str(e)
         }
-
-
-import vim
