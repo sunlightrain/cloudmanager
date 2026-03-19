@@ -188,6 +188,57 @@
 
   - [ ] 26.2 验证所有功能正常运行
 
+## 第六阶段：vSphere 核心能力实现
+
+- [x] 30. pyVmomi 连接池管理
+  - [x] 30.1 创建 app/core/vsphere/pool.py 连接池
+  - [x] 30.2 实现连接复用和自动清理
+
+- [x] 31. vSphere 客户端封装
+  - [x] 31.1 创建 app/core/vsphere/client.py 完整封装
+  - [x] 31.2 实现数据中心/集群/主机查询
+  - [x] 31.3 实现 VM/存储/网络查询
+  - [x] 31.4 实现快照管理
+
+- [x] 32. 数据中心层级结构同步
+  - [x] 32.1 创建 app/services/datacenter_service.py
+  - [x] 32.2 实现树形层级结构 API
+  - [x] 32.3 实现数据中心概览
+
+- [x] 33. VM 全生命周期管理
+  - [x] 33.1 创建 app/services/vm_service.py
+  - [x] 33.2 实现 VM 异步创建/删除/克隆
+  - [x] 33.3 实现电源操作（开机/关机/重启/挂起）
+  - [x] 33.4 实现资源在线调整（热添加 CPU/内存）
+
+- [x] 34. 存储管理
+  - [x] 34.1 创建 app/services/storage_service.py
+  - [x] 34.2 实现存储列表和概览
+
+- [x] 35. 网络管理
+  - [x] 35.1 创建 app/services/network_service.py
+  - [x] 35.2 实现标准/分布式交换机管理
+  - [x] 35.3 实现端口组管理
+
+- [x] 36. 集群和迁移服务
+  - [x] 36.1 创建 app/services/cluster_service.py
+  - [x] 36.2 实现 HA/DRS 配置查看
+  - [x] 36.3 实现资源池管理
+  - [x] 36.4 实现 vMotion 迁移
+  - [x] 36.5 实现 Storage vMotion
+
+- [x] 37. 异步任务系统
+  - [x] 37.1 创建 app/tasks/celery_app.py
+  - [x] 37.2 实现 VM 异步任务
+  - [x] 37.3 实现快照异步任务
+
+- [x] 38. API 路由完善
+  - [x] 38.1 更新 /clusters 路由
+  - [x] 38.2 更新 /datacenters 路由
+  - [x] 38.3 创建 /storage 路由
+  - [x] 38.4 创建 /networks 路由
+  - [x] 38.5 创建 /migration 路由
+
 ## 第五阶段：优化与完善
 
 - [x] 27. 代码优化
