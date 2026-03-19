@@ -6,6 +6,7 @@ from app.api.deps import require_current_user
 from app.models.user import User
 from app.models.task import Task
 from app.models.operation_log import OperationLog
+from app.services.vm_service import VMService
 from app.schemas.vm import VMCreate, VMUpdate, VMPowerAction, VMResponse, VMListResponse
 from app.schemas.common import ResponseModel
 from app.core.vsphere import get_vsphere_client
@@ -191,3 +192,205 @@ def power_vm(
     session.commit()
     
     return ResponseModel(message=f"VM {action.action} successful")
+
+
+@router.post("/{vm_id}/power-on", response_model=ResponseModel)
+async def power_on_vm(
+    vm_id: str,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.power_on(vm_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_power_on",
+        target=vm_id
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.post("/{vm_id}/power-off", response_model=ResponseModel)
+async def power_off_vm(
+    vm_id: str,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.power_off(vm_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_power_off",
+        target=vm_id
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.post("/{vm_id}/restart", response_model=ResponseModel)
+async def restart_vm(
+    vm_id: str,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.restart(vm_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_restart",
+        target=vm_id
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.post("/{vm_id}/suspend", response_model=ResponseModel)
+async def suspend_vm(
+    vm_id: str,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.suspend(vm_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_suspend",
+        target=vm_id
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.get("/{vm_id}/snapshots", response_model=ResponseModel)
+async def list_snapshots(
+    vm_id: str,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    snapshots = await vm_service.get_snapshots(vm_id)
+    return ResponseModel(data=snapshots)
+
+
+@router.post("/{vm_id}/snapshots", response_model=ResponseModel)
+async def create_snapshot(
+    vm_id: str,
+    name: str,
+    description: str = "",
+    memory: bool = False,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.create_snapshot(vm_id, name, description, memory)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_snapshot_create",
+        target=vm_id,
+        detail=f"Snapshot: {name}"
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.post("/{vm_id}/snapshots/{snapshot_id}/revert", response_model=ResponseModel)
+async def revert_snapshot(
+    vm_id: str,
+    snapshot_id: str,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.revert_snapshot(vm_id, snapshot_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_snapshot_revert",
+        target=vm_id,
+        detail=f"Snapshot ID: {snapshot_id}"
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.delete("/{vm_id}/snapshots/{snapshot_id}", response_model=ResponseModel)
+async def delete_snapshot(
+    vm_id: str,
+    snapshot_id: str,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    result = await vm_service.delete_snapshot(vm_id, snapshot_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    log = OperationLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        operation="vm_snapshot_delete",
+        target=vm_id,
+        detail=f"Snapshot ID: {snapshot_id}"
+    )
+    session.add(log)
+    session.commit()
+    
+    return ResponseModel(message=result["message"], data=result)
+
+
+@router.get("/{vm_id}/performance", response_model=ResponseModel)
+def get_vm_performance(
+    vm_id: str,
+    current_user: User = Depends(require_current_user),
+    session: Session = Depends(get_session)
+):
+    vm_service = VMService(session)
+    performance = vm_service.get_vm_performance(vm_id)
+    
+    if not performance:
+        raise HTTPException(status_code=404, detail="VM not found or performance data unavailable")
+    
+    return ResponseModel(data=performance)
