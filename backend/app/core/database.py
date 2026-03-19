@@ -16,6 +16,7 @@ def init_db():
     from app.models.user import User
     from app.models.task import Task
     from app.models.operation_log import OperationLog
+    from app.models.session import Session as SessionModel
     SQLModel.metadata.create_all(engine)
 
 

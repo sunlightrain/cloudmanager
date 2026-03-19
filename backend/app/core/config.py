@@ -1,3 +1,4 @@
+import secrets
 from typing import Optional
 from pydantic_settings import BaseSettings
 from functools import lru_cache
@@ -5,11 +6,11 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     app_name: str = "VMware Cloud Manager"
-    debug: bool = True
+    debug: bool = False
     
     database_url: str = "sqlite:///./cloud_manager.db"
     
-    secret_key: str = "your-secret-key-change-in-production"
+    secret_key: str = secrets.token_urlsafe(32)
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
     
