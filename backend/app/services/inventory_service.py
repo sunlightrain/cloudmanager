@@ -1,6 +1,7 @@
 import json
 import logging
-from datetime import datetime
+import asyncio
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.core.vsphere import get_vsphere_client, VSphereOperationError
@@ -12,6 +13,140 @@ from app.models.storage import Datastore
 from app.models.network import Network
 
 logger = logging.getLogger(__name__)
+
+
+class IncrementalSyncService:
+    _instance = None
+    _lock = asyncio.Lock()
+    _running = False
+    _sync_interval = 60
+    
+    def __init__(self):
+        self._tasks = {}
+    
+    @classmethod
+    async def get_instance(cls) -> "IncrementalSyncService":
+        if cls._instance is None:
+            async with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
+        return cls._instance
+    
+    async def start(self, session_factory, sync_interval: int = 60):
+        if self._running:
+            logger.warning("Incremental sync already running")
+            return
+        
+        self._running = True
+        self._sync_interval = sync_interval
+        self._session_factory = session_factory
+        
+        logger.info(f"Starting incremental sync with interval {sync_interval}s")
+        
+        while self._running:
+            try:
+                await self._sync_once()
+            except Exception as e:
+                logger.error(f"Error during incremental sync: {e}")
+            
+            await asyncio.sleep(self._sync_interval)
+    
+    async def stop(self):
+        self._running = False
+        logger.info("Stopping incremental sync")
+    
+    async def _sync_once(self):
+        from app.core.database import get_session
+        
+        session = next(get_session())
+        try:
+            inventory_service = InventoryService(session)
+            inventory_service.sync_incremental()
+            
+            snapshot_service = SnapshotMonitorService(session)
+            snapshot_service.check_long_running_snapshots()
+            
+            logger.debug("Incremental sync completed")
+        finally:
+            session.close()
+
+
+class SnapshotMonitorService:
+    SNAPSHOT_MAX_AGE_HOURS = 72
+    
+    def __init__(self, session: Session):
+        self.session = session
+        self.vsphere = get_vsphere_client()
+    
+    def check_long_running_snapshots(self) -> List[Dict[str, Any]]:
+        alerts = []
+        try:
+            vms = self.session.query(VM).all()
+            cutoff_time = datetime.utcnow() - timedelta(hours=self.SNAPSHOT_MAX_AGE_HOURS)
+            
+            for vm in vms:
+                snapshots = self.vsphere.get_snapshots(vm.vc_guid)
+                for snap in snapshots:
+                    try:
+                        created_str = snap.get("created")
+                        if created_str:
+                            created = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                            if created < cutoff_time:
+                                alerts.append({
+                                    "vm_id": vm.vc_guid,
+                                    "vm_name": vm.name,
+                                    "snapshot_id": snap.get("snapshot_id"),
+                                    "snapshot_name": snap.get("name"),
+                                    "created": created_str,
+                                    "age_hours": (datetime.utcnow() - created).total_seconds() / 3600
+                                })
+                    except Exception as e:
+                        logger.warning(f"Error checking snapshot {snap.get('snapshot_id')}: {e}")
+            
+            if alerts:
+                logger.warning(f"Found {len(alerts)} long-running snapshots")
+                self._save_alerts(alerts)
+            
+        except Exception as e:
+            logger.error(f"Error checking long-running snapshots: {e}")
+        
+        return alerts
+    
+    def cleanup_old_snapshots(self, vm_id: str, keep_count: int = 0) -> Dict[str, Any]:
+        try:
+            snapshots = self.vsphere.get_snapshots(vm_id)
+            if not snapshots:
+                return {"success": True, "message": "No snapshots to clean"}
+            
+            snapshots_sorted = sorted(
+                snapshots,
+                key=lambda x: x.get("created", ""),
+                reverse=True
+            )
+            
+            to_delete = snapshots_sorted[keep_count:]
+            deleted = []
+            failed = []
+            
+            for snap in to_delete:
+                try:
+                    self.vsphere.delete_snapshot(vm_id, snap.get("snapshot_id"))
+                    deleted.append(snap.get("name"))
+                except Exception as e:
+                    failed.append({"name": snap.get("name"), "error": str(e)})
+            
+            return {
+                "success": len(failed) == 0,
+                "deleted": deleted,
+                "failed": failed,
+                "message": f"Deleted {len(deleted)} snapshots"
+            }
+        except Exception as e:
+            logger.error(f"Error cleaning up snapshots for VM {vm_id}: {e}")
+            return {"success": False, "message": str(e)}
+    
+    def _save_alerts(self, alerts: List[Dict[str, Any]]):
+        logger.warning(f"Snapshot alerts: {json.dumps(alerts)}")
 
 
 class InventoryService:
@@ -61,6 +196,75 @@ class InventoryService:
             result["errors"].append(f"Network sync failed: {e}")
         
         return result
+    
+    def sync_incremental(self) -> Dict[str, Any]:
+        result = {
+            "vms": 0,
+            "hosts": 0,
+            "errors": []
+        }
+        
+        try:
+            result["hosts"] = self.sync_hosts_incremental()
+        except Exception as e:
+            result["errors"].append(f"Host incremental sync failed: {e}")
+        
+        try:
+            result["vms"] = self.sync_vms_incremental()
+        except Exception as e:
+            result["errors"].append(f"VM incremental sync failed: {e}")
+        
+        return result
+    
+    def sync_hosts_incremental(self) -> int:
+        count = 0
+        try:
+            host_list = self.vsphere.get_hosts()
+            existing_guids = {h.vc_guid for h in self.session.query(Host).all()}
+            
+            for host_data in host_list:
+                host_id = host_data.get("host_id")
+                
+                if host_id in existing_guids:
+                    host = self.session.query(Host).filter(Host.vc_guid == host_id).first()
+                    if host:
+                        host.name = host_data.get("name", host.name)
+                        host.status = host_data.get("status", host.status)
+                        host.connection_state = host_data.get("connection_state", host.connection_state)
+                        host.maintenance_mode = host_data.get("maintenance_mode", host.maintenance_mode)
+                        host.last_sync = datetime.utcnow()
+                count += 1
+            
+            self.session.commit()
+        except Exception as e:
+            logger.error(f"Error in host incremental sync: {e}")
+            self.session.rollback()
+        
+        return count
+    
+    def sync_vms_incremental(self) -> int:
+        count = 0
+        try:
+            vm_list = self.vsphere.get_vms()
+            existing_guids = {vm.vc_guid for vm in self.session.query(VM).all()}
+            
+            for vm_data in vm_list:
+                vm_id = vm_data.get("vm_id")
+                
+                if vm_id in existing_guids:
+                    vm = self.session.query(VM).filter(VM.vc_guid == vm_id).first()
+                    if vm:
+                        vm.name = vm_data.get("name", vm.name)
+                        vm.status = vm_data.get("status", vm.status)
+                        vm.last_sync = datetime.utcnow()
+                count += 1
+            
+            self.session.commit()
+        except Exception as e:
+            logger.error(f"Error in VM incremental sync: {e}")
+            self.session.rollback()
+        
+        return count
     
     def sync_datacenters(self) -> int:
         count = 0
