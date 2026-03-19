@@ -72,6 +72,16 @@ const routes: RouteRecordRaw[] = [
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/Settings.vue')
+      },
+      {
+        path: 'topology',
+        name: 'Topology',
+        component: () => import('@/views/Topology.vue')
+      },
+      {
+        path: 'tenant',
+        name: 'TenantPortal',
+        component: () => import('@/views/TenantPortal.vue')
       }
     ]
   }
