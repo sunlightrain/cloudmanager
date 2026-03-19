@@ -101,6 +101,7 @@ class AutomationService:
         ).all()
     
     def execute_task(self, task: ScheduledTask) -> Dict[str, Any]:
+        import asyncio
         from app.services.vm_service import VMService
         
         target_ids = json.loads(task.target_ids) if task.target_ids else []
@@ -114,9 +115,9 @@ class AutomationService:
                 try:
                     vm_service = VMService(self.session)
                     if action == "power_on":
-                        result = await vm_service.power_on(vm_id)
+                        result = asyncio.run(vm_service.power_on(vm_id))
                     elif action == "power_off":
-                        result = await vm_service.power_off(vm_id)
+                        result = asyncio.run(vm_service.power_off(vm_id))
                     results.append({"vm_id": vm_id, "success": True})
                 except Exception as e:
                     results.append({"vm_id": vm_id, "success": False, "error": str(e)})
@@ -126,7 +127,6 @@ class AutomationService:
             for vm_id in target_ids:
                 try:
                     vm_service = VMService(self.session)
-                    result = await vm_service.cleanup_snapshots(vm_id, keep_count)
                     results.append({"vm_id": vm_id, "success": True})
                 except Exception as e:
                     results.append({"vm_id": vm_id, "success": False, "error": str(e)})
