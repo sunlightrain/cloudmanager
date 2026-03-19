@@ -8,6 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from app.core.database import init_db
 from app.api.routes import auth, vms, tasks, hosts, logs, settings
 from app.api.routes import snapshots, clone, batch, infrastructure, users
+from app.api.routes import clusters, datacenters, storage, networks, migration
 
 logging.basicConfig(
     level=logging.INFO,
@@ -64,6 +65,11 @@ app.include_router(clone.router, prefix="/api")
 app.include_router(batch.router, prefix="/api")
 app.include_router(infrastructure.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
+app.include_router(clusters.router, prefix="/api")
+app.include_router(datacenters.router, prefix="/api")
+app.include_router(storage.router, prefix="/api")
+app.include_router(networks.router, prefix="/api")
+app.include_router(migration.router, prefix="/api")
 
 
 @app.on_event("startup")
