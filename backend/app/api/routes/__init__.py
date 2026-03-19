@@ -1,6 +1,6 @@
 from app.api.routes import auth, vms, tasks, hosts, logs, settings
 from app.api.routes import snapshots, clone, batch, infrastructure, users, inventory
-from app.api.routes import tenants, approvals
+from app.api.routes import tenants, approvals, automation, monitoring, backups
 
 __all__ = [
     "auth",
@@ -17,4 +17,7 @@ __all__ = [
     "inventory",
     "tenants",
     "approvals",
+    "automation",
+    "monitoring",
+    "backups",
 ]

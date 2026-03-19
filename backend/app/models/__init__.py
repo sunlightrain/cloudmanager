@@ -10,6 +10,9 @@ from app.models.storage import Datastore
 from app.models.network import Network, PortGroup
 from app.models.tenant import Tenant, TenantUser
 from app.models.approval import ApprovalTemplate, ApprovalRequest, ApprovalRecord
+from app.models.automation import ScheduledTask, ServiceTemplate, VMInitConfig
+from app.models.monitoring import AlertRule, Alert, NotificationChannel, MetricDataPoint
+from app.models.backup import BackupPolicy, BackupJob, BackupFile
 
 __all__ = [
     "User",
@@ -28,4 +31,14 @@ __all__ = [
     "ApprovalTemplate",
     "ApprovalRequest",
     "ApprovalRecord",
+    "ScheduledTask",
+    "ServiceTemplate",
+    "VMInitConfig",
+    "AlertRule",
+    "Alert",
+    "NotificationChannel",
+    "MetricDataPoint",
+    "BackupPolicy",
+    "BackupJob",
+    "BackupFile",
 ]

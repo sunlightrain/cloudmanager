@@ -2,12 +2,12 @@ from fastapi import FastAPI
 from app.core.database import init_db
 from app.api.routes import auth, vms, tasks, hosts, logs, settings
 from app.api.routes import snapshots, clone, batch, infrastructure, users, inventory
-from app.api.routes import tenants, approvals
+from app.api.routes import tenants, approvals, automation, monitoring, backups
 
 app = FastAPI(
     title="VMware Cloud Manager",
     description="Cloud Management Platform for VMware vSphere",
-    version="0.8.0"
+    version="0.9.0"
 )
 
 app.include_router(auth.router, prefix="/api")
@@ -24,6 +24,9 @@ app.include_router(users.router, prefix="/api")
 app.include_router(inventory.router, prefix="/api")
 app.include_router(tenants.router, prefix="/api")
 app.include_router(approvals.router, prefix="/api")
+app.include_router(automation.router, prefix="/api")
+app.include_router(monitoring.router, prefix="/api")
+app.include_router(backups.router, prefix="/api")
 
 
 @app.on_event("startup")
