@@ -13,10 +13,22 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: process.env.VITE_API_URL || 'http://localhost:8000',
         changeOrigin: true
       }
     },
-    allowedHosts: ['.monkeycode-ai.online']
+    allowedHosts: ['.monkeycode-ai.online', 'localhost', '127.0.0.1']
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'element-plus': ['element-plus'],
+          'vue-vendor': ['vue', 'vue-router', 'pinia']
+        }
+      }
+    }
   }
 })
